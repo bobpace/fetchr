@@ -86,18 +86,23 @@ var OP_READ = 'read',
                     config: {},
                     callback: function (err, data, meta) {
                         if (err) {
-                            res.status(err.statusCode || 400).send(err.message || 'request failed');
+                            res.status = err.statusCode || 400;
+                            res.message = err.message || 'request failed';
+                            next();
                             return;
                         }
                         meta = meta || {};
-                        res.status(meta.statusCode || 200).json(data);
+                        res.status = meta.statusCode || 200;
+                        res.body = data;
+                        next();
                     }
                 };
             } else {
                 var requests = req.body.requests;
 
                 if (!requests || Object.keys(requests).length === 0) {
-                    res.status(400).end();
+                    res.status = 404;
+                    next();
                     return;
                 }
 
@@ -112,13 +117,17 @@ var OP_READ = 'read',
                     config: singleRequest.config,
                     callback: function(err, data, meta) {
                         if(err) {
-                            res.status(err.statusCode || 400).send(err.message || 'request failed');
+                            res.status = err.statusCode || 400;
+                            res.message = err.message || 'request failed';
+                            next();
                             return;
                         }
                         meta = meta || {};
                         var responseObj = {};
                         responseObj[DEFAULT_GUID] = {data: data};
-                        res.status(meta.statusCode || 200).json(responseObj);
+                        res.status = meta.statusCode || 200;
+                        res.body = responseObj;
+                        next();
                     }
                 };
             }

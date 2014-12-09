@@ -3,7 +3,7 @@
  * Copyrights licensed under the New BSD License. See the accompanying LICENSE file for terms.
  */
 /*jshint expr:true*/
-/*globals before,describe,it */
+/*globals before,describe,it,beforeEach */
 "use strict";
 
 var chai = require('chai');
@@ -33,9 +33,13 @@ describe('Server Fetcher', function () {
 
     describe('#middleware', function () {
         describe('#POST', function() {
+            beforeEach(function() {
+              Fetcher.registerFetcher(mockFetcher);
+              Fetcher.registerFetcher(mockErrorFetcher);
+            });
+
             it('should 404 to POST request with no req.body.requests object', function (done) {
                 var operation = 'create',
-                    statusCodeSet = false,
                     req = {
                         method: 'POST',
                         path: '/resource/' + mockFetcher.name,
@@ -47,23 +51,13 @@ describe('Server Fetcher', function () {
                             }
                         }
                     },
-                    res = {
-                        status: function (code) {
-                            expect(code).to.equal(400);
-                            statusCodeSet = true;
-                            return this;
-                        },
-                        end: function () {
-                            done();
-                        }
-                    },
-                    next = function () {
-                        console.log('Not Expected: middleware skipped request');
-                    },
+                    res = {},
                     middleware = Fetcher.middleware();
 
-                middleware(req, res, next);
-                expect(statusCodeSet).to.be.true;
+                middleware(req, res, function() {
+                  expect(res.status).to.equal(404);
+                  done();
+                });
             });
 
             it('should respond to POST api request', function (done) {
@@ -89,34 +83,22 @@ describe('Server Fetcher', function () {
                             }
                         }
                     },
-                    res = {
-                        json: function(response) {
-                            expect(response).to.exist;
-                            expect(response).to.not.be.empty;
-                            var data = response.g0.data;
-                            expect(data).to.contain.keys('operation', 'args');
-                            expect(data.operation.name).to.equal(operation);
-                            expect(data.operation.success).to.be.true;
-                            expect(data.args).to.contain.keys('params');
-                            expect(data.args.params).to.equal(req.body.requests.g0.params);
-                            done();
-                        },
-                        status: function(code) {
-                            expect(code).to.equal(200);
-                            statusCodeSet = true;
-                            return this;
-                        },
-                        send: function (code) {
-                            console.log('Not Expected: middleware responded with', code);
-                        }
-                    },
-                    next = function () {
-                        console.log('Not Expected: middleware skipped request');
-                    },
+                    res = {},
                     middleware = Fetcher.middleware();
 
-                middleware(req, res, next);
-                expect(statusCodeSet).to.be.true;
+                middleware(req, res, function() {
+                  expect(res.status).to.equal(200);
+                  var json = res.body;
+                  expect(json).to.exist;
+                  expect(json).to.not.be.empty;
+                  var data = json.g0.data;
+                  expect(data).to.contain.keys('operation', 'args');
+                  expect(data.operation.name).to.equal(operation);
+                  expect(data.operation.success).to.be.true;
+                  expect(data.args).to.contain.keys('params');
+                  expect(data.args.params).to.equal(req.body.requests.g0.params);
+                  done();
+                });
             });
 
             it('should respond to POST api request with custom status code', function (done) {
@@ -143,38 +125,25 @@ describe('Server Fetcher', function () {
                             }
                         }
                     },
-                    res = {
-                        json: function(response) {
-                            expect(response).to.exist;
-                            expect(response).to.not.be.empty;
-                            var data = response.g0.data;
-                            expect(data).to.contain.keys('operation', 'args');
-                            expect(data.operation.name).to.equal(operation);
-                            expect(data.operation.success).to.be.true;
-                            expect(data.args).to.contain.keys('params');
-                            expect(data.args.params).to.equal(req.body.requests.g0.params);
-                            done();
-                        },
-                        status: function(code) {
-                            expect(code).to.equal(statusCode);
-                            statusCodeSet = true;
-                            return this;
-                        },
-                        send: function (code) {
-                            console.log('Not Expected: middleware responded with', code);
-                        }
-                    },
-                    next = function () {
-                        console.log('Not Expected: middleware skipped request');
-                    },
+                    res = {},
                     middleware = Fetcher.middleware({pathPrefix: '/api'});
 
                 mockFetcher.meta = {
                     statusCode: statusCode
                 };
 
-                middleware(req, res, next);
-                expect(statusCodeSet).to.be.true;
+                middleware(req, res, function() {
+                  expect(res.status).to.equal(statusCode);
+                  expect(res.body).to.exist;
+                  expect(res.body).to.not.be.empty;
+                  var data = res.body.g0.data;
+                  expect(data).to.contain.keys('operation', 'args');
+                  expect(data.operation.name).to.equal(operation);
+                  expect(data.operation.success).to.be.true;
+                  expect(data.args).to.contain.keys('params');
+                  expect(data.args.params).to.equal(req.body.requests.g0.params);
+                  done();
+                });
             });
 
             var makePostApiErrorTest = function(params, expStatusCode, expMessage) {
@@ -198,26 +167,14 @@ describe('Server Fetcher', function () {
                                 }
                             }
                         },
-                        res = {
-                            json: function(response) {
-                                console.log('Not Expected: middleware responded with', response);
-                            },
-                            status: function(code) {
-                                expect(code).to.equal(expStatusCode);
-                                statusCodeSet = true;
-                                return this;
-                            },
-                            send: function (data) {
-                                expect(data).to.equal(expMessage);
-                                done();
-                            }
-                        },
-                        next = function () {
-                            console.log('Not Expected: middleware skipped request');
-                        },
+                        res = {},
                         middleware = Fetcher.middleware({pathPrefix: '/api'});
-                    middleware(req, res, next);
-                    expect(statusCodeSet).to.be.true;
+
+                    middleware(req, res, function(){
+                      expect(res.status).to.equal(expStatusCode);
+                      expect(res.message).to.equal(expMessage);
+                      done();
+                    });
                 };
             };
 
@@ -243,37 +200,24 @@ describe('Server Fetcher', function () {
                         method: 'GET',
                         path: '/resource/' + mockFetcher.name + ';' + qs.stringify(params, ';')
                     },
-                    res = {
-                        json: function(response) {
-                            expect(response).to.exist;
-                            expect(response).to.not.be.empty;
-                            expect(response).to.contain.keys('operation', 'args');
-                            expect(response.operation.name).to.equal(operation);
-                            expect(response.operation.success).to.be.true;
-                            expect(response.args).to.contain.keys('params');
-                            expect(response.args.params).to.deep.equal(params);
-                            done();
-                        },
-                        status: function(code) {
-                            expect(code).to.equal(200);
-                            statusCodeSet = true;
-                            return this;
-                        },
-                        send: function (code) {
-                            console.log('Not Expected: middleware responded with', code);
-                        }
-                    },
-                    next = function () {
-                        console.log('Not Expected: middleware skipped request');
-                    },
+                    res = {},
                     middleware = Fetcher.middleware({pathPrefix: '/api'});
-                middleware(req, res, next);
-                expect(statusCodeSet).to.be.true;
+
+                middleware(req, res, function() {
+                  expect(res.status).to.equal(200);
+                  expect(res.body).to.exist;
+                  expect(res.body).to.not.be.empty;
+                  expect(res.body).to.contain.keys('operation', 'args');
+                  expect(res.body.operation.name).to.equal(operation);
+                  expect(res.body.operation.success).to.be.true;
+                  expect(res.body.args).to.contain.keys('params');
+                  expect(res.body.args.params).to.deep.equal(params);
+                  done();
+                });
             });
 
             it('should respond to GET api request with custom status code', function (done) {
                 var operation = 'read',
-                    statusCodeSet = false,
                     statusCode = 201,
                     params = {
                         uuids: ['cd7240d6-aeed-3fed-b63c-d7e99e21ca17', 'cd7240d6-aeed-3fed-b63c-d7e99e21ca17'],
@@ -283,36 +227,24 @@ describe('Server Fetcher', function () {
                         method: 'GET',
                         path: '/resource/' + mockFetcher.name + ';' + qs.stringify(params, ';')
                     },
-                    res = {
-                        json: function(response) {
-                            expect(response).to.exist;
-                            expect(response).to.not.be.empty;
-                            expect(response).to.contain.keys('operation', 'args');
-                            expect(response.operation.name).to.equal(operation);
-                            expect(response.operation.success).to.be.true;
-                            expect(response.args).to.contain.keys('params');
-                            expect(response.args.params).to.deep.equal(params);
-                            done();
-                        },
-                        status: function(code) {
-                            expect(code).to.equal(statusCode);
-                            statusCodeSet = true;
-                            return this;
-                        },
-                        send: function (code) {
-                            console.log('Not Expected: middleware responded with', code);
-                        }
-                    },
-                    next = function () {
-                        console.log('Not Expected: middleware skipped request');
-                    },
+                    res = {},
                     middleware = Fetcher.middleware({pathPrefix: '/api'});
 
                 mockFetcher.meta = {
                     statusCode: statusCode
                 };
-                middleware(req, res, next);
-                expect(statusCodeSet).to.be.true;
+
+                middleware(req, res, function() {
+                  expect(res.status).to.equal(statusCode);
+                  expect(res.body).to.exist;
+                  expect(res.body).to.not.be.empty;
+                  expect(res.body).to.contain.keys('operation', 'args');
+                  expect(res.body.operation.name).to.equal(operation);
+                  expect(res.body.operation.success).to.be.true;
+                  expect(res.body.args).to.contain.keys('params');
+                  expect(res.body.args.params).to.deep.equal(params);
+                  done();
+                });
             });
 
             var makeGetApiErrorTest = function(params, expStatusCode, expMessage) {
@@ -323,26 +255,14 @@ describe('Server Fetcher', function () {
                             method: 'GET',
                             path: '/resource/' + mockErrorFetcher.name + ';' + qs.stringify(params, ';')
                         },
-                        res = {
-                            json: function(response) {
-                                console.log('Not Expected: middleware responded with', response);
-                            },
-                            status: function(code) {
-                                expect(code).to.equal(expStatusCode);
-                                statusCodeSet = true;
-                                return this;
-                            },
-                            send: function (data) {
-                                expect(data).to.equal(expMessage);
-                                done();
-                            }
-                        },
-                        next = function () {
-                            console.log('Not Expected: middleware skipped request');
-                        },
+                        res = {},
                         middleware = Fetcher.middleware({pathPrefix: '/api'});
-                    middleware(req, res, next);
-                    expect(statusCodeSet).to.be.true;
+
+                    middleware(req, res, function() {
+                      expect(res.status).to.equal(expStatusCode);
+                      expect(res.message).to.equal(expMessage);
+                      done();
+                    });
                 };
             };
 
