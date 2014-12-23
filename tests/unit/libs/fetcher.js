@@ -32,11 +32,8 @@ describe('Server Fetcher', function () {
     });
 
     describe('#middleware', function () {
+
         describe('#POST', function() {
-            beforeEach(function() {
-              Fetcher.registerFetcher(mockFetcher);
-              Fetcher.registerFetcher(mockErrorFetcher);
-            });
 
             it('should 404 to POST request with no req.body.requests object', function (done) {
                 var operation = 'create',
@@ -282,49 +279,45 @@ describe('Server Fetcher', function () {
             params = {},
             body = {},
             config = {},
-            callback = function(operation, done) {
-                return function(err, data) {
-                    if (err){
-                        done(err);
-                    }
-                    expect(data.operation).to.exist;
-                    expect(data.operation.name).to.equal(operation);
-                    expect(data.operation.success).to.be.true;
-                    done();
-                };
+            checkData = function(operation) {
+              return function(data) {
+                expect(data.operation).to.exist;
+                expect(data.operation.name).to.equal(operation);
+                expect(data.operation.success).to.be.true;
+              };
             };
 
-        it('should handle CREATE', function (done) {
+        it('should handle CREATE', function () {
             var operation = 'create';
-            fetcher[operation](resource, params, body, config, callback(operation, done));
+            return fetcher[operation](resource, params, body, config).then(checkData(operation));
         });
-        it('should handle CREATE w/ no config', function (done) {
+        it('should handle CREATE w/ no config', function () {
             var operation = 'create';
-            fetcher[operation](resource, params, body, callback(operation, done));
+            return fetcher[operation](resource, params, body).then(checkData(operation));
         });
-        it('should handle READ', function (done) {
+        it('should handle READ', function () {
             var operation = 'read';
-            fetcher[operation](resource, params, config, callback(operation, done));
+            return fetcher[operation](resource, params, config).then(checkData(operation));
         });
-        it('should handle READ w/ no config', function (done) {
+        it('should handle READ w/ no config', function () {
             var operation = 'read';
-            fetcher[operation](resource, params, callback(operation, done));
+            return fetcher[operation](resource, params).then(checkData(operation));
         });
-        it('should handle UPDATE', function (done) {
+        it('should handle UPDATE', function () {
             var operation = 'update';
-            fetcher[operation](resource, params, body, config, callback(operation, done));
+            return fetcher[operation](resource, params, body, config).then(checkData(operation));
         });
-        it('should handle UPDATE w/ no config', function (done) {
+        it('should handle UPDATE w/ no config', function () {
             var operation = 'update';
-            fetcher[operation](resource, params, body, callback(operation, done));
+            return fetcher[operation](resource, params, body).then(checkData(operation));
         });
-        it('should handle DELETE', function (done) {
+        it('should handle DELETE', function () {
             var operation = 'delete';
-            fetcher[operation](resource, params, config, callback(operation, done));
+            return fetcher[operation](resource, params, config).then(checkData(operation));
         });
-        it('should handle DELETE w/ no config', function (done) {
+        it('should handle DELETE w/ no config', function () {
             var operation = 'delete';
-            fetcher[operation](resource, params, callback(operation, done));
+            return fetcher[operation](resource, params).then(checkData(operation));
         });
     });
 

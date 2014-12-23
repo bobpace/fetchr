@@ -20,19 +20,25 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    read: function (req, resource, params, context, callback) {
-        callback(null, {
-            operation: {
-                name: 'read',
-                success: true
-            },
-            args: {
-                resource: resource,
-                params: params,
-                context: context
-            }
-        }, this.meta);
-        this.meta = null;
+    read: function (req, resource, params, context) {
+      var meta = this.meta;
+      var result = new Promise(function(resolve, reject) {
+        resolve({
+          operation: {
+            name: 'read',
+            success: true
+          },
+          args: {
+            resource: resource,
+            params: params,
+            context: context
+          },
+          meta: meta
+        });
+      });
+
+      this.meta = null;
+      return result;
     },
     /**
      * create operation (create as in CRUD).
@@ -46,19 +52,25 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    create: function (req, resource, params, body, context, callback) {
-        callback(null, {
-            operation: {
-                name: 'create',
-                success: true
-            },
-            args: {
-                resource: resource,
-                params: params,
-                context: context
-            }
-        }, this.meta);
-        this.meta = null;
+    create: function (req, resource, params, body, context) {
+      var meta = this.meta;
+      var result = new Promise(function(resolve, reject) {
+        resolve({
+          operation: {
+            name: 'create',
+            success: true
+          },
+          args: {
+            resource: resource,
+            params: params,
+            context: context
+          },
+          meta: meta
+        });
+      });
+
+      this.meta = null;
+      return result;
     },
     /**
      * update operation (update as in CRUD).
@@ -72,19 +84,25 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    update: function (req, resource, params, body, context, callback) {
-        callback(null, {
-            operation: {
-                name: 'update',
-                success: true
-            },
-            args: {
-                resource: resource,
-                params: params,
-                context: context
-            }
-        }, this.meta);
-        this.meta = null;
+    update: function (req, resource, params, body, context) {
+      var meta = this.meta;
+      var result = new Promise(function(resolve, reject) {
+        resolve({
+          operation: {
+            name: 'update',
+            success: true
+          },
+          args: {
+            resource: resource,
+            params: params,
+            context: context
+          },
+          meta: meta
+        });
+      });
+
+      this.meta = null;
+      return result;
     },
     /**
      * delete operation (delete as in CRUD).
@@ -97,19 +115,25 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    'delete': function (req, resource, params, context, callback) {
-        callback(null, {
-            operation: {
-                name: 'delete',
-                success: true
-            },
-            args: {
-                resource: resource,
-                params: params,
-                context: context
-            }
-        }, this.meta);
-        this.meta = null;
+    'delete': function (req, resource, params, context) {
+      var meta = this.meta;
+      var result = new Promise(function(resolve, reject) {
+        resolve({
+          operation: {
+            name: 'delete',
+            success: true
+          },
+          args: {
+            resource: resource,
+            params: params,
+            context: context
+          },
+          meta: meta
+        });
+      });
+
+      this.meta = null;
+      return result;
     }
 
 };

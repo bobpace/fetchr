@@ -75,6 +75,7 @@ var OP_READ = 'read',
     Fetcher.middleware = function () {
         return function (req, res, next) {
             var request;
+            var setBody;
 
             if (req.method === GET) {
                 var path = req.path.substr('/resource/'.length).split(';');
@@ -83,19 +84,11 @@ var OP_READ = 'read',
                     resource: path.shift(),
                     operation: OP_READ,
                     params: qs.parse(path.join('&')),
-                    config: {},
-                    callback: function (err, data, meta) {
-                        if (err) {
-                            res.status = err.statusCode || 400;
-                            res.message = err.message || 'request failed';
-                            next();
-                            return;
-                        }
-                        meta = meta || {};
-                        res.status = meta.statusCode || 200;
-                        res.body = data;
-                        next();
-                    }
+                    config: {}
+                };
+
+                setBody = function(data) {
+                  res.body = data;
                 };
             } else {
                 var requests = req.body.requests;
@@ -108,31 +101,35 @@ var OP_READ = 'read',
 
                 var DEFAULT_GUID = 'g0',
                     singleRequest = requests[DEFAULT_GUID];
+
                 request = {
                     req: req,
                     resource: singleRequest.resource,
                     operation: singleRequest.operation,
                     params: singleRequest.params,
                     body: singleRequest.body || {},
-                    config: singleRequest.config,
-                    callback: function(err, data, meta) {
-                        if(err) {
-                            res.status = err.statusCode || 400;
-                            res.message = err.message || 'request failed';
-                            next();
-                            return;
-                        }
-                        meta = meta || {};
-                        var responseObj = {};
-                        responseObj[DEFAULT_GUID] = {data: data};
-                        res.status = meta.statusCode || 200;
-                        res.body = responseObj;
-                        next();
-                    }
+                    config: singleRequest.config
+                };
+
+                setBody = function(data) {
+                  var responseObj = {};
+                  responseObj[DEFAULT_GUID] = {data: data};
+                  res.body = responseObj;
                 };
             }
 
-            Fetcher.single(request);
+            Fetcher.single(request)
+            .then(function(data){
+              meta = data.meta || {};
+              res.status = meta.statusCode || 200;
+              setBody(data);
+              next();
+            })
+            .catch(function(err){
+              res.status = err.statusCode || 400;
+              res.message = err.message || 'request failed';
+              next();
+            });
             // TODO: Batching and multi requests
         };
     };
@@ -155,7 +152,6 @@ var OP_READ = 'read',
      * @param {Object} request.body      The JSON object that contains the resource data that is being updated. Not used
      *                                   for read and delete operations.
      * @param {Object} request.config    The config object.  It can contain "config" for per-request config data.
-     * @param {Fetcher~fetcherCallback} request.callback callback invoked when fetcher is complete.
      * @protected
      * @static
      */
@@ -168,21 +164,15 @@ var OP_READ = 'read',
             params = request.params,
             body = request.body,
             config = request.config,
-            callback = request.callback,
             args;
 
-        if (typeof config === 'function') {
-            callback = config;
-            config = {};
-        }
-
-        args = [req, resource, params, config, callback];
+        args = [req, resource, params, config];
 
         if ((op === OP_CREATE) || (op === OP_UPDATE)) {
             args.splice(3, 0, body);
         }
 
-        fetcher[op].apply(fetcher, args);
+        return fetcher[op].apply(fetcher, args);
     };
 
 
@@ -198,19 +188,17 @@ var OP_READ = 'read',
      * @param {Object} params    The parameters identify the resource, and along with information
      *                           carried in query and matrix parameters in typical REST API
      * @param {Object} [config={}] The config object.  It can contain "config" for per-request config data.
-     * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    Fetcher.prototype.read = function (resource, params, config, callback) {
+    Fetcher.prototype.read = function (resource, params, config) {
         var request = {
             req: this.req,
             resource: resource,
             operation: 'read',
             params: params,
-            config: config,
-            callback: callback
+            config: config
         };
-        Fetcher.single(request);
+        return Fetcher.single(request);
     };
     /**
      * create operation (create as in CRUD).
@@ -221,20 +209,18 @@ var OP_READ = 'read',
      *                           carried in query and matrix parameters in typical REST API
      * @param {Object} body      The JSON object that contains the resource data that is being created
      * @param {Object} [config={}] The config object.  It can contain "config" for per-request config data.
-     * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    Fetcher.prototype.create = function (resource, params, body, config, callback) {
+    Fetcher.prototype.create = function (resource, params, body, config) {
         var request = {
             req: this.req,
             resource: resource,
             operation: 'create',
             params: params,
             body: body,
-            config: config,
-            callback: callback
+            config: config
         };
-        Fetcher.single(request);
+        return Fetcher.single(request);
     };
     /**
      * update operation (update as in CRUD).
@@ -245,10 +231,9 @@ var OP_READ = 'read',
      *                           carried in query and matrix parameters in typical REST API
      * @param {Object} body      The JSON object that contains the resource data that is being updated
      * @param {Object} [config={}] The config object.  It can contain "config" for per-request config data.
-     * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    Fetcher.prototype.update = function (resource, params, body, config, callback) {
+    Fetcher.prototype.update = function (resource, params, body, config) {
         var request = {
             req: this.req,
             resource: resource,
@@ -256,9 +241,8 @@ var OP_READ = 'read',
             params: params,
             body: body,
             config: config,
-            callback: callback
         };
-        Fetcher.single(request);
+        return Fetcher.single(request);
     };
     /**
      * delete operation (delete as in CRUD).
@@ -268,19 +252,17 @@ var OP_READ = 'read',
      * @param {Object} params    The parameters identify the resource, and along with information
      *                           carried in query and matrix parameters in typical REST API
      * @param {Object} [config={}] The config object.  It can contain "config" for per-request config data.
-     * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    Fetcher.prototype['delete'] = function (resource, params, config, callback) {
+    Fetcher.prototype['delete'] = function (resource, params, config) {
         var request = {
             req: this.req,
             resource: resource,
             operation: 'delete',
             params: params,
-            config: config,
-            callback: callback
+            config: config
         };
-        Fetcher.single(request);
+        return Fetcher.single(request);
     };
 
     module.exports = Fetcher;

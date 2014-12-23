@@ -20,12 +20,14 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    read: function (req, resource, params, context, callback) {
-        callback({
-            statusCode: parseInt(params.statusCode),
-            message: params.message,
-            read: 'error'
-        }, null);
+    read: function (req, resource, params, context) {
+      return new Promise(function(resolve, reject) {
+        reject({
+          statusCode: parseInt(params.statusCode),
+          message: params.message,
+          read: 'error'
+        });
+      });
     },
     /**
      * create operation (create as in CRUD).
@@ -39,12 +41,14 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    create: function (req, resource, params, body, context, callback) {
-        callback({
-            statusCode: parseInt(params.statusCode),
-            message: params.message,
-            create: 'error'
-        }, null);
+    create: function (req, resource, params, body, context) {
+      return new Promise(function(resolve, reject) {
+        reject({
+          statusCode: parseInt(params.statusCode),
+          message: params.message,
+          create: 'error'
+        });
+      });
     },
     /**
      * update operation (update as in CRUD).
@@ -58,12 +62,14 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    update: function (req, resource, params, body, context, callback) {
-        callback({
-            statusCode: parseInt(params.statusCode),
-            message: params.message,
-            update: 'error'
-        }, null);
+    update: function (req, resource, params, body, context) {
+      return new Promise(function(resolve, reject) {
+        reject({
+          statusCode: parseInt(params.statusCode),
+          message: params.message,
+          update: 'error'
+        });
+      });
     },
     /**
      * delete operation (delete as in CRUD).
@@ -76,12 +82,14 @@ var Fetcher = {
      * @param {Fetcher~fetcherCallback} callback callback invoked when fetcher is complete.
      * @static
      */
-    delete: function (req, resource, params, context, callback) {
-        callback({
-            statusCode: parseInt(params.statusCode),
-            message: params.message,
-            delete: 'error'
-        }, null);
+    delete: function (req, resource, params, context) {
+      return new Promise(function(resolve, reject) {
+        reject({
+          statusCode: parseInt(params.statusCode),
+          message: params.message,
+          delete: 'error'
+        });
+      });
     }
 
 };
