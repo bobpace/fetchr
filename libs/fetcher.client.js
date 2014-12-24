@@ -23,7 +23,10 @@ var REST = require('./util/http.client'),
     DEFAULT_BATCH_WINDOW = 20,
     MAX_URI_LEN = 2048,
     OP_READ = 'read',
-    NAME = 'FetcherClient';
+    NAME = 'FetcherClient',
+    Bluebird = require('bluebird'),
+    GET = Bluebird.promisify(REST.get),
+    POST = Bluebird.promisify(REST.post);
 
 function parseResponse(response) {
     if (response && response.responseText) {
@@ -89,23 +92,28 @@ Queue.prototype = {
      * @chainable
      */
     push : function (item) {
+      var self = this;
+      return new Bluebird(function(resolve, reject) {
         if (!item) {
-            return this;
+          reject(item);
+          return;
         }
 
-        if (this.config.wait <= 0) {
+        item.resolve = resolve;
+        item.reject = reject;
+
+        if (self.config.wait <= 0) {
             // process immediately
-            this._cb(item);
-            this._items = [];
-            return this;
+            self._cb(item);
+            self._items = [];
+            return;
         }
 
-        var self = this;
-        this._items.push(item);
+        self._items.push(item);
 
         // setup timer
-        if (!this._timer) {
-            this._timer = setTimeout(function () {
+        if (!self._timer) {
+            self._timer = setTimeout(function () {
                 var items = self._items;
                 self._items = [];
                 clearTimeout(self._timer);
@@ -114,9 +122,9 @@ Queue.prototype = {
                 _.forEach(items, function (item) {
                     self._cb(item);
                 });
-            }, this.config.wait);
+            }, self.config.wait);
         }
-        return this;
+      });
     }
 };
 
@@ -167,11 +175,10 @@ Queue.prototype = {
          *                           carried in query and matrix parameters in typical REST API
          * @param {Object} body      The JSON object that contains the resource data that is being created
          * @param {Object} config    The "config" object for per-request config data.
-         * @param {Function} callback callback convention is the same as Node.js
          * @static
          */
-        create: function (resource, params, body, config, callback) {
-            this._sync(resource, 'create', params, body, config, callback);
+        create: function (resource, params, body, config) {
+            return this._sync(resource, 'create', params, body, config);
         },
 
         /**
@@ -181,11 +188,10 @@ Queue.prototype = {
          * @param {Object} params    The parameters identify the resource, and along with information
          *                           carried in query and matrix parameters in typical REST API
          * @param {Object} config    The "config" object for per-request config data.
-         * @param {Function} callback callback convention is the same as Node.js
          * @static
          */
-        read: function (resource, params, config, callback) {
-            this._sync(resource, 'read', params, undefined, config, callback);
+        read: function (resource, params, config) {
+            return this._sync(resource, 'read', params, undefined, config);
         },
 
         /**
@@ -199,8 +205,8 @@ Queue.prototype = {
          * @param {Function} callback callback convention is the same as Node.js
          * @static
          */
-        update: function (resource, params, body, config, callback) {
-            this._sync(resource, 'update', params, body, config, callback);
+        update: function (resource, params, body, config) {
+            return this._sync(resource, 'update', params, body, config);
         },
 
         /**
@@ -213,8 +219,8 @@ Queue.prototype = {
          * @param {Function} callback callback convention is the same as Node.js
          * @static
          */
-        'delete': function (resource, params, config, callback) {
-            this._sync(resource, 'delete', params, undefined, config, callback);
+        'delete': function (resource, params, config) {
+            return this._sync(resource, 'delete', params, undefined, config);
         },
         /**
          * Sync data with remote API.
@@ -226,16 +232,10 @@ Queue.prototype = {
          * @param {Object} body      The JSON object that contains the resource data that is being updated. Not used
          *                           for read and delete operations.
          * @param {Object} config    The "config" object for per-request config data.
-         * @param {Function} callback callback convention is the same as Node.js
          * @static
          * @private
          */
-        _sync: function (resource, operation, params, body, config, callback) {
-            if (typeof config === 'function') {
-                callback = config;
-                config = {};
-            }
-
+        _sync: function (resource, operation, params, body, config) {
             config = config || {};
             config.xhr = this.xhrPath;
 
@@ -245,13 +245,11 @@ Queue.prototype = {
                     operation: operation,
                     params: params,
                     body: body,
-                    config: config,
-                    callback: callback
+                    config: config
                 };
 
             if (!_.isFunction(this.batch) || !config.consolidate) {
-                this.single(request);
-                return;
+                return this.single(request);
             }
 
             // push request to queue so that it can be batched
@@ -261,17 +259,14 @@ Queue.prototype = {
                 }, function (requests) {
                     return self.batch(requests);
                 }, function (batched) {
-                    if (!batched) {
-                        return;
-                    }
                     if (!_.isArray(batched)) {
-                        self.single(batched);
+                        self.single(batched).then(batched.resolve, batched.reject);
                     } else {
                         self.multi(batched);
                     }
                 });
             }
-            this._q.push(request);
+            return this._q.push(request);
         },
         // ------------------------------------------------------------------
         // Helper Methods
@@ -338,7 +333,6 @@ Queue.prototype = {
          * @param {Object} request.body      The JSON object that contains the resource data that is being updated. Not used
          *                           for read and delete operations.
          * @param {Object} request.config    The "config" object for per-request config data.
-         * @param {Function} request.callback callback convention is the same as Node.js
          * @protected
          * @static
          */
@@ -348,7 +342,6 @@ Queue.prototype = {
             }
 
             var config = request.config,
-                callback = request.callback || _.noop,
                 use_post,
                 allow_retry_post,
                 uri = config.uri || config.xhr || this.xhrPath,
@@ -367,14 +360,14 @@ Queue.prototype = {
             }
 
             if (!use_post) {
-                REST.get(uri, {}, config, function (err, response) {
-                    if (err) {
-                        debug('Syncing ' + request.resource + ' failed: statusCode=' + err.statusCode, 'info', NAME);
-                        return callback(err);
-                    }
-                    callback(null, parseResponse(response));
-                });
-                return;
+                return GET(uri, {}, config)
+                    .then(function(response){
+                      return parseResponse(response);
+                    })
+                    .catch(function(err) {
+                      debug('Syncing ' + request.resource + ' failed: statusCode=' + err.statusCode, 'info', NAME);
+                      throw err;
+                    });
             }
 
             // individual request is also normalized into a request hash to pass to touchdown api
@@ -389,19 +382,21 @@ Queue.prototype = {
             }; // TODO: remove. leave here for now for backward compatibility
             uri = this._constructGroupUri(uri);
             allow_retry_post = (request.operation === OP_READ);
-            REST.post(uri, {}, data, _.merge({unsafeAllowRetry: allow_retry_post}, config), function (err, response) {
-                if (err) {
-                    debug('Syncing ' + request.resource + ' failed: statusCode=' + err.statusCode, 'info', NAME);
-                    return callback(err);
-                }
-                var result = parseResponse(response);
-                if (result) {
-                    result = result[DEFAULT_GUID] || {};
-                } else {
-                    result = {};
-                }
-                callback(null, result.data);
-            });
+
+            return POST(uri, {}, data, _.merge({unsafeAllowRetry: allow_retry_post}, config))
+              .then(function(response) {
+                  var result = parseResponse(response);
+                  if (result) {
+                      result = result[DEFAULT_GUID] || {};
+                  } else {
+                      result = {};
+                  }
+                  return result.data;
+              })
+              .catch(function(err) {
+                  debug('Syncing ' + request.resource + ' failed: statusCode=' + err.statusCode, 'info', NAME);
+                  throw err;
+              });
         },
 
         /**
@@ -485,22 +480,21 @@ Queue.prototype = {
             });
 
             uri = this._constructGroupUri(uri);
-            REST.post(uri, {}, data, _.merge({unsafeAllowRetry: allow_retry_post}, config), function (err, response) {
-                if (err) {
-                    _.forEach(requests, function (request) {
-                        request.callback(err);
-                    });
-                    return;
-                }
-                var result = parseResponse(response);
-                // split result for requests, so that each request gets back only the data that was originally requested
-                _.forEach(request_map, function (request, guid) {
-                    var res = (result && result[guid]) || {};
-                    if (request.callback) {
-                        request.callback(res.err || null, res.data || null);
-                    }
+
+            return POST(uri, {}, data, _.merge({unsafeAllowRetry: allow_retry_post}, config))
+                .then(function(response) {
+                  var result = parseResponse(response);
+                  // split result for requests, so that each request gets back only the data that was originally requested
+                  _.forEach(request_map, function (request, guid) {
+                      var res = (result && result[guid]) || {};
+                      request.resolve(res.data || null);
+                  });
+                })
+                .catch(function(err) {
+                  _.forEach(requests, function (request) {
+                      request.reject(err);
+                  });
                 });
-            });
         }
     };
 
